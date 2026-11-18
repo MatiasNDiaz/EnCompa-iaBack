@@ -100,6 +100,7 @@ const user = { email: `user-${run}@test.local`, password: pwd() };
 const createdUsers = [];
 const file = `products/test-${run}.webp`;
 const specialFile = `specials/test-${run}.webp`;
+const exceptionNote = `security-${run}`;
 
 try {
   admin.id = await createUser(admin.email, admin.password);
@@ -174,6 +175,12 @@ try {
   const anonSpecialPatch = await rest("daily_specials?moment=eq.morning", { method: "PATCH", body: { title: "x" } });
   check("plato del día: NO edita", !anonSpecialPatch.ok, `status ${anonSpecialPatch.status}`);
   check("plato del día: NO sube fotos", !(await upload(`specials/anon-${run}.webp`)).ok);
+  const anonHours = await rest("site_settings?select=opening_hours");
+  check("horarios: lee el horario semanal", anonHours.ok, `status ${anonHours.status}`);
+  const anonHoursPatch = await rest("site_settings?singleton=is.true", { method: "PATCH", body: { opening_hours: null } });
+  check("horarios: NO cambia el horario", !anonHoursPatch.ok, `status ${anonHoursPatch.status}`);
+  const anonException = await rest("opening_exceptions", { method: "POST", body: { date: "2099-01-01", type: "closed", note: exceptionNote } });
+  check("horarios: NO crea días especiales", !anonException.ok, `status ${anonException.status}`);
 
   console.log("\nUsuario autenticado sin rol admin");
   const uInsert = await rest("categories", { token: userToken, method: "POST", body: { name: "X", slug: `x-${run}` } });
@@ -193,6 +200,12 @@ try {
   const uSpecial = await rest("daily_specials?moment=not.is.null", { token: userToken, method: "PATCH", body: { is_published: false } });
   check("NO edita el plato del día (0 filas)",
     uSpecial.ok && (await uSpecial.json()).length === 0, `status ${uSpecial.status}`);
+  const uException = await rest("opening_exceptions", { token: userToken, method: "POST", body: { date: "2099-01-01", type: "closed", note: exceptionNote } });
+  check("NO crea días especiales", !uException.ok, `status ${uException.status}`);
+  const uHours = await rest("site_settings?singleton=is.true", { token: userToken, method: "PATCH", body: { opening_hours: null } });
+  check("NO cambia el horario (0 filas)", uHours.ok && (await uHours.json()).length === 0, `status ${uHours.status}`);
+  const uPurge = await rest("rpc/purge_past_opening_exceptions", { token: userToken, method: "POST", body: {} });
+  check("la limpieza de días pasados no borra nada", uPurge.ok && (await uPurge.json()) === 0, `status ${uPurge.status}`);
 
   console.log("\nAdministrador");
   // Reescribe el MISMO precio que ya tenía: prueba el permiso sin alterar los datos del seed.
@@ -233,6 +246,25 @@ try {
   check("sube una foto a specials/", aSpecialUp.ok, `status ${aSpecialUp.status}`);
   await removeObject(specialFile, adminToken);
 
+  // Horarios: el admin crea, valida y borra días especiales (fecha lejana: no se ve en la web).
+  const aException = await rest("opening_exceptions", {
+    token: adminToken, method: "POST", body: { date: "2099-12-31", type: "closed", note: exceptionNote },
+  });
+  check("horarios: el admin crea un día especial", aException.ok, `status ${aException.status}`);
+  const aBadException = await rest("opening_exceptions", {
+    token: adminToken, method: "POST", body: { date: "2099-12-30", type: "custom", note: exceptionNote },
+  });
+  check("horarios: NO acepta un horario distinto sin franjas", !aBadException.ok, `status ${aBadException.status}`);
+  const aBadHours = await rest("site_settings?singleton=is.true", {
+    token: adminToken, method: "PATCH", body: { opening_hours: [{ day: "monday", ranges: [] }] },
+  });
+  check("horarios: NO acepta un horario semanal incompleto", !aBadHours.ok, `status ${aBadHours.status}`);
+  const aExceptionDelete = await rest(`opening_exceptions?note=eq.${encodeURIComponent(exceptionNote)}`, {
+    token: adminToken, method: "DELETE",
+  });
+  check("horarios: el admin borra el día especial",
+    aExceptionDelete.ok && (await aExceptionDelete.json()).length === 1, `status ${aExceptionDelete.status}`);
+
   console.log("\nBorrado en Storage");
   await removeObject(file, userToken);
   check("el no-admin NO puede borrar el archivo", await publicExists(file));
@@ -245,6 +277,9 @@ try {
 } finally {
   await removeObject(file, null).catch(() => {});
   await fetch(`${API}/storage/v1/object/site-media/${specialFile}`, {
+    method: "DELETE", headers: { ...adminHeaders, Authorization: `Bearer ${SECRET}` },
+  }).catch(() => {});
+  await fetch(`${API}/rest/v1/opening_exceptions?note=eq.${encodeURIComponent(exceptionNote)}`, {
     method: "DELETE", headers: { ...adminHeaders, Authorization: `Bearer ${SECRET}` },
   }).catch(() => {});
   for (const id of createdUsers) await deleteUser(id);

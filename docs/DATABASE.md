@@ -27,6 +27,9 @@ desde cero con `npm run db:reset` (local). **No se hacen cambios manuales desde 
 | 18 | `*_site_settings_contact_data.sql` | Dirección, WhatsApp, teléfono, email y redes del local (solo si estaban vacíos) |
 | 19 | `*_site_settings_map_embed.sql` | El mapa acepta el embed por dirección (sin clave de API) y se carga el del local |
 | 20 | `*_tapeo.sql` | "Tapas" → **"Tapeo"**: categoría (nombre y slug `tapeo-y-para-compartir`), descriptor del hero, bloque de la propuesta y tarjeta "Bar y tapeo". Solo si el texto seguía siendo el original |
+| 21 | `*_opening_hours.sql` | **Horarios**: validación estricta de `site_settings.opening_hours`, horario genérico inicial (todos los días de 9:00 a 23:00, solo si estaba vacío), tabla `opening_exceptions` (días especiales) con RLS y `public.purge_past_opening_exceptions()` |
+| 22 | `*_opening_hours_lint.sql` | Misma función de validación con una variable renombrada (aviso de `db lint`) |
+| 23 | `*_opening_hours_today.sql` | Los días especiales usan `private.today_ar()` (la que ya existía) y se borra la duplicada `today_in_cordoba()` |
 
 `functions` va **antes** que `rls_policies` (el prompt técnico las listaba al revés) porque las
 políticas referencian las funciones y estas deben existir al crearlas.
@@ -64,7 +67,7 @@ auth.users ──1 profiles                  (ON DELETE CASCADE)
 | `trainings` | Campos del prompt + **`subtitle`** (la "bajada" oficial del texto 5.8). `instructor`, `organization`, `certificate_name` nullable: se completan cuando se confirmen con los diplomas. |
 | `training_images` | **Tabla** (no arreglo de paths): cada foto tiene orden y `alt_text` propios, se edita/borra individualmente y la limpieza de Storage es foto por foto. `ON DELETE CASCADE` borra filas, **no archivos**: la Server Action debe borrar los archivos (fotos, portada y certificado). |
 | `site_content` | `section` única entre 10 claves fijas. `items jsonb` para listas (hoy solo `values`): CHECK `items IS NULL OR (section = 'values' AND jsonb_typeof(items) = 'array')`. La forma de cada ítem (`{title, description}`) se valida con Zod. Se eligió jsonb sobre una tabla porque son 5 ítems que siempre se editan juntos. |
-| `site_settings` | **Fila única**: columna `singleton boolean unique check (singleton)`. La fila se crea en la migración (es estructura, existe también en producción); la API solo permite `UPDATE`. URLs de redes/Maps con CHECK de dominio. `opening_hours jsonb` (arreglo por día, forma validada con Zod). Sin `external_menu_url` (la carta es interna). |
+| `site_settings` | **Fila única**: columna `singleton boolean unique check (singleton)`. La fila se crea en la migración (es estructura, existe también en producción); la API solo permite `UPDATE`. URLs de redes/Maps con CHECK de dominio. `opening_hours jsonb` (horario semanal, validado en la base: ver "Horarios"). Sin `external_menu_url` (la carta es interna). |
 | `profiles` | `id` → `auth.users` `ON DELETE CASCADE`. `role` restringido a `admin` y **sin default**: un perfil solo existe si se creó deliberadamente. Un usuario autenticado sin fila en `profiles` no tiene permisos de escritura. |
 
 ### Momentos del día (`categories.moments`)
@@ -146,6 +149,32 @@ Una fila por momento del día (`moment day_moment UNIQUE`): mañana, mediodía y
   con los dueños) definido en `EnCompa-iaFront/src/config/specials.ts`: mañana 06:00–11:59,
   mediodía 12:00–15:59, tarde/noche 16:00–05:59.
 - Tests: `supabase/tests/database/04_daily_specials.test.sql`.
+
+### Horarios (`site_settings.opening_hours` y `opening_exceptions`)
+
+Se editan desde el panel (`/admin/horarios`) y se ven en Ubicación y en el pie de la web.
+
+- **Horario semanal**: se reutilizó el `jsonb` que ya existía (una tabla no aportaba nada: son
+  7 días que se editan y se guardan juntos). Forma:
+  `[{ "day": "monday", "ranges": [{ "open": "09:00", "close": "15:00" }, …] }, …]`.
+  `CHECK private.is_valid_opening_hours(opening_hours)`:
+  - los 7 días, una vez cada uno; sin franjas = cerrado;
+  - hasta 2 franjas por día, `HH:MM`, en orden y sin superponerse;
+  - cierre menor que la apertura = **termina al día siguiente** (ej. 19:00 → 01:00): solo la
+    última franja del día y sin pisar la primera del día siguiente (también de domingo a lunes).
+  - El panel exige marcar «Cierra al día siguiente» a mano; la base lo deduce de las horas.
+- **Días especiales** (`opening_exceptions`): `date` única, `type` `closed` | `custom`,
+  `ranges` (obligatorio y 1–2 franjas solo en `custom`; `NULL` en `closed`), `note` opcional
+  (≤ 120, se ve en la web). Reemplaza al horario semanal ese día.
+- **RLS**: anon y no-admin leen el horario y los días especiales **de hoy en adelante**
+  (`date >= private.today_ar()`, hora de Córdoba); solo el admin crea, edita y borra, y ve
+  también los pasados.
+- **Limpieza**: `public.purge_past_opening_exceptions()` borra los días que ya pasaron y
+  devuelve cuántos (`SECURITY INVOKER`: para quien no es admin borra 0). No es automática: el
+  panel muestra "Borrar N días que ya pasaron".
+- **Horario genérico inicial** (migración 21): todos los días de 9:00 a 23:00, solo si no había
+  horario. El dueño lo cambia desde el panel.
+- Tests: `supabase/tests/database/05_opening_hours.test.sql` y `scripts/test-security-api.mjs`.
 
 ### Índices
 
