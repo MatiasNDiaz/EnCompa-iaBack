@@ -30,6 +30,7 @@ desde cero con `npm run db:reset` (local). **No se hacen cambios manuales desde 
 | 21 | `*_opening_hours.sql` | **Horarios**: validación estricta de `site_settings.opening_hours`, horario genérico inicial (todos los días de 9:00 a 23:00, solo si estaba vacío), tabla `opening_exceptions` (días especiales) con RLS y `public.purge_past_opening_exceptions()` |
 | 22 | `*_opening_hours_lint.sql` | Misma función de validación con una variable renombrada (aviso de `db lint`) |
 | 23 | `*_opening_hours_today.sql` | Los días especiales usan `private.today_ar()` (la que ya existía) y se borra la duplicada `today_in_cordoba()` |
+| 24 | `*_news_posts.sql` | **Novedades**: tabla `news_posts` con RLS, trigger de `published_at` y carpeta `news/` en las políticas de Storage |
 
 `functions` va **antes** que `rls_policies` (el prompt técnico las listaba al revés) porque las
 políticas referencian las funciones y estas deben existir al crearlas.
@@ -175,6 +176,26 @@ Se editan desde el panel (`/admin/horarios`) y se ven en Ubicación y en el pie 
 - **Horario genérico inicial** (migración 21): todos los días de 9:00 a 23:00, solo si no había
   horario. El dueño lo cambia desde el panel.
 - Tests: `supabase/tests/database/05_opening_hours.test.sql` y `scripts/test-security-api.mjs`.
+
+### Novedades (`news_posts`)
+
+Eventos, promociones y propuestas especiales (por ejemplo "Noche de chicas"). Se editan en
+`/admin/novedades` y se ven en `/novedades` y `/novedades/<slug>`.
+
+- Campos: `title` (1–120), `slug` único (se genera del título al crearla y no cambia),
+  `description` (1–1500, párrafos separados por línea en blanco), `closing_message` opcional
+  (≤ 200, el mensaje final destacado), `event_date` opcional, `is_published`, `published_at`.
+- **Medios** (CHECK `news_posts_media`): `image` → imagen en `news/` y sin portada;
+  `video` → MP4/WebM en `news/` y **portada obligatoria** (imagen en `news/`).
+- **`published_at`**: un trigger lo completa la primera vez que se publica y lo conserva al ocultar
+  y volver a publicar (el orden de la lista no salta). La web ordena por esta fecha, de la más
+  reciente a la más vieja.
+- RLS: anon y no-admin ven solo las publicadas; solo el admin crea, edita y borra.
+- Archivos: el panel sube con URL firmada, el servidor verifica tipo y tamaño (imágenes 8 MiB,
+  videos 50 MiB) y borra los que quedan sin uso al reemplazar o eliminar, con compensación si
+  la fila no se guarda.
+- La navbar muestra "Novedades" solo si hay al menos una publicada.
+- Tests: `supabase/tests/database/06_news_posts.test.sql` y `scripts/test-security-api.mjs`.
 
 ### Índices
 

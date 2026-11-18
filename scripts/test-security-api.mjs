@@ -101,6 +101,9 @@ const createdUsers = [];
 const file = `products/test-${run}.webp`;
 const specialFile = `specials/test-${run}.webp`;
 const exceptionNote = `security-${run}`;
+const newsFile = `news/test-${run}.mp4`;
+const newsSlug = `security-${run}`;
+const newsRow = { title: "x", slug: newsSlug, description: "x", media_type: "image", media_path: "news/x.webp" };
 
 try {
   admin.id = await createUser(admin.email, admin.password);
@@ -181,6 +184,9 @@ try {
   check("horarios: NO cambia el horario", !anonHoursPatch.ok, `status ${anonHoursPatch.status}`);
   const anonException = await rest("opening_exceptions", { method: "POST", body: { date: "2099-01-01", type: "closed", note: exceptionNote } });
   check("horarios: NO crea días especiales", !anonException.ok, `status ${anonException.status}`);
+  const anonNews = await rest("news_posts", { method: "POST", body: newsRow });
+  check("novedades: NO crea", !anonNews.ok, `status ${anonNews.status}`);
+  check("novedades: NO sube archivos a news/", !(await upload(`news/anon-${run}.webp`)).ok);
 
   console.log("\nUsuario autenticado sin rol admin");
   const uInsert = await rest("categories", { token: userToken, method: "POST", body: { name: "X", slug: `x-${run}` } });
@@ -202,6 +208,9 @@ try {
     uSpecial.ok && (await uSpecial.json()).length === 0, `status ${uSpecial.status}`);
   const uException = await rest("opening_exceptions", { token: userToken, method: "POST", body: { date: "2099-01-01", type: "closed", note: exceptionNote } });
   check("NO crea días especiales", !uException.ok, `status ${uException.status}`);
+  const uNews = await rest("news_posts", { token: userToken, method: "POST", body: newsRow });
+  check("NO crea novedades", !uNews.ok, `status ${uNews.status}`);
+  check("NO sube archivos a news/", !(await upload(`news/user-${run}.webp`, { token: userToken })).ok);
   const uHours = await rest("site_settings?singleton=is.true", { token: userToken, method: "PATCH", body: { opening_hours: null } });
   check("NO cambia el horario (0 filas)", uHours.ok && (await uHours.json()).length === 0, `status ${uHours.status}`);
   const uPurge = await rest("rpc/purge_past_opening_exceptions", { token: userToken, method: "POST", body: {} });
@@ -265,6 +274,24 @@ try {
   check("horarios: el admin borra el día especial",
     aExceptionDelete.ok && (await aExceptionDelete.json()).length === 1, `status ${aExceptionDelete.status}`);
 
+  // Novedades: el admin sube un video a news/, crea un borrador (no se ve público) y lo borra.
+  const aNewsUp = await upload(newsFile, { token: adminToken, type: "video/mp4" });
+  check("novedades: el admin sube un video a news/", aNewsUp.ok, `status ${aNewsUp.status}`);
+  const videoRow = { ...newsRow, media_type: "video", media_path: newsFile };
+  const aNewsNoPoster = await rest("news_posts", { token: adminToken, method: "POST", body: videoRow });
+  check("novedades: NO acepta un video sin portada", !aNewsNoPoster.ok, `status ${aNewsNoPoster.status}`);
+  const aNews = await rest("news_posts", {
+    token: adminToken, method: "POST", body: { ...videoRow, poster_path: "news/poster.webp" },
+  });
+  check("novedades: el admin crea un borrador", aNews.ok, `status ${aNews.status}`);
+  const anonDraft = await rest(`news_posts?slug=eq.${newsSlug}&select=id`);
+  check("novedades: anon NO ve el borrador",
+    anonDraft.ok && (await anonDraft.json()).length === 0, `status ${anonDraft.status}`);
+  const aNewsDelete = await rest(`news_posts?slug=eq.${newsSlug}`, { token: adminToken, method: "DELETE" });
+  check("novedades: el admin elimina",
+    aNewsDelete.ok && (await aNewsDelete.json()).length === 1, `status ${aNewsDelete.status}`);
+  await removeObject(newsFile, adminToken);
+
   console.log("\nBorrado en Storage");
   await removeObject(file, userToken);
   check("el no-admin NO puede borrar el archivo", await publicExists(file));
@@ -282,6 +309,11 @@ try {
   await fetch(`${API}/rest/v1/opening_exceptions?note=eq.${encodeURIComponent(exceptionNote)}`, {
     method: "DELETE", headers: { ...adminHeaders, Authorization: `Bearer ${SECRET}` },
   }).catch(() => {});
+  for (const path of [`rest/v1/news_posts?slug=eq.${newsSlug}`, `storage/v1/object/site-media/${newsFile}`]) {
+    await fetch(`${API}/${path}`, {
+      method: "DELETE", headers: { ...adminHeaders, Authorization: `Bearer ${SECRET}` },
+    }).catch(() => {});
+  }
   for (const id of createdUsers) await deleteUser(id);
 }
 

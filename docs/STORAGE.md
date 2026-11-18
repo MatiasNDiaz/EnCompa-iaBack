@@ -31,6 +31,7 @@ site-media/
 ├── products/       fotos de productos
 ├── categories/     banners de las secciones de la carta (migración 10)
 ├── specials/       fotos del plato del día (migración 10; tabla daily_specials, migración 15)
+├── news/           novedades: fotos, videos MP4/WebM y portadas (migración 24; tabla news_posts)
 ├── gallery/        fotos y videos de la galería (+ posters)
 ├── tour/           fotos del recorrido
 ├── trainings/      portadas, certificados y fotos del equipo
@@ -45,7 +46,7 @@ con el código, no en el bucket.
 | Operación | Quién | Condición extra |
 |---|---|---|
 | SELECT (listar/leer por API) | admin | — |
-| INSERT | admin | Primera carpeta ∈ las 8 permitidas |
+| INSERT | admin | Primera carpeta ∈ las 9 permitidas |
 | UPDATE (reemplazo) | admin | Ídem |
 | DELETE | admin | — |
 | Lectura por URL pública | cualquiera | (no pasa por RLS: bucket público) |
