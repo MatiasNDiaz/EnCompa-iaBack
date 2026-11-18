@@ -16,6 +16,13 @@ desde cero con `npm run db:reset` (local). **No se hacen cambios manuales desde 
 | 7 | `*_product_ingredients.sql` | `products.ingredients` (bloque "Ingredientes" de la tarjeta; opcional) |
 | 8 | `*_category_moments.sql` | Enum `day_moment`, `categories.moments` y vista `categories_with_moments` (herencia) |
 | 9 | `*_category_moments_data.sql` | **Datos**: momentos iniciales de las 8 categorías raíz (idempotente) |
+| 10 | `*_storage_folders.sql` | Carpetas `categories/` y `specials/` en las políticas de subida de `site-media` |
+| 11 | `*_category_banners.sql` | Banner en la base: `image_path` → carpeta `categories/`, `image_is_illustrative`, vista con la columna nueva |
+| 12 | `*_category_banners_data.sql` | **Datos**: texto inicial de los 8 banners (solo donde está vacío) |
+| 13 | `*_product_stock.sql` | `products.out_of_stock_on`, `private.today_ar()` y campo calculado `out_of_stock_today` |
+| 14 | `*_category_reorder.sql` | `public.reorder_categories(uuid[])`: reordenar secciones hermanas en una transacción (solo admin) |
+| 15 | `*_daily_specials.sql` | Tabla `daily_specials` (plato del día) con sus **3 filas fijas**, RLS y `private.is_valid_ingredient_list()` |
+| 16 | `*_daily_specials_ingredients_text.sql` | `daily_specials.ingredients` pasa de lista (`text[]`) a texto libre (≤ 500), como en productos. Conserva los datos (une con ", ") |
 
 `functions` va **antes** que `rls_policies` (el prompt técnico las listaba al revés) porque las
 políticas referencian las funciones y estas deben existir al crearlas.
@@ -87,7 +94,54 @@ y por eso nunca pisa lo editado desde el panel):
 | Postres | | ✅ | ✅ | ⚠️ **A confirmar** |
 | Cocktails | | | ✅ | Presentación del equipo |
 
-Las subcategorías quedan en `{}` y heredan (p. ej. Menú del día → mediodía). Se editarán desde el panel.
+Las subcategorías quedan en `{}` y heredan (p. ej. Menú del día → mediodía). Se editan desde el panel.
+
+### Banners de la carta (`categories.image_path`, `description`, `image_is_illustrative`)
+
+El banner de cada sección sale de la base (antes la foto salía del código por slug):
+
+- `image_path`: foto en `site-media/categories/`. `NULL` → la web muestra la textura de marca.
+- `description`: texto breve bajo el título.
+- `image_is_illustrative`: la foto es de banco (no del local) → la web la rotula "Imagen
+  ilustrativa". Al subir o quitar la foto desde el panel vuelve a `false`.
+- Valores iniciales: textos con la migración 12; fotos con `npm run media:banners`
+  (ver `docs/STORAGE.md`). Se decidió **no renombrar** las columnas a `banner_*`: ya eran el
+  banner y renombrar obligaba a tocar vista, tipos y queries sin beneficio.
+
+### Disponibilidad: oculto vs. sin stock por hoy
+
+| | `is_available = false` | `out_of_stock_on = hoy` |
+|---|---|---|
+| En el panel | "Oculto de la carta" (p. ej. de temporada) | "Sin stock hoy" |
+| Web pública | **No aparece** (la RLS no lo entrega) | **Aparece** atenuado con la etiqueta |
+| Cómo vuelve | Lo muestra el admin | Solo al día siguiente, o "Disponible otra vez" (`NULL`) |
+
+- "Hoy" = `private.today_ar()` = fecha en `America/Argentina/Cordoba`.
+- `public.out_of_stock_today(products)` es un **campo calculado** de PostgREST
+  (`select=*,out_of_stock_today`); lo usan el panel y los tests.
+- La web pública recibe la **fecha** (no un sí/no) y decide al mostrar: el servidor manda su
+  estimación y el navegador la confirma con la fecha de Córdoba. Así una página en caché del día
+  anterior no deja un producto atenuado.
+- La RLS pública no cambió: ya filtraba solo por `is_available`.
+- Tests: `supabase/tests/database/03_panel_carta.test.sql`.
+
+### Plato del día (`daily_specials`)
+
+Una fila por momento del día (`moment day_moment UNIQUE`): mañana, mediodía y tarde/noche.
+
+- **Las 3 filas se crean en la migración** (vacías y sin publicar), así existen también en
+  producción. El admin solo tiene `UPDATE`: no puede crear ni borrar filas ("Vaciar" en el panel
+  pone los campos en `NULL` y borra la foto).
+- Campos: `image_path` (`site-media/specials/`), `title`, `subtitle`, `body`, `price numeric(10,2)`
+  opcional (≥ 0), `ingredients text` opcional (texto libre, hasta 500 caracteres; migración 16:
+  cargarlos de a uno en el panel era tedioso), `is_published`.
+- **No se publica sin foto y sin título**: `CHECK (not is_published or (image_path is not null and title is not null))`.
+- RLS: anon y no-admin ven solo los publicados; el admin ve y edita los 3.
+- En la web se ven en la carta, filtro "Platos del día" (`/carta?ver=platos-del-dia`), al que
+  lleva el ítem "Plato del día" del menú. Cada plato muestra su horario (provisorio, a confirmar
+  con los dueños) definido en `EnCompa-iaFront/src/config/specials.ts`: mañana 06:00–11:59,
+  mediodía 12:00–15:59, tarde/noche 16:00–05:59.
+- Tests: `supabase/tests/database/04_daily_specials.test.sql`.
 
 ### Índices
 
@@ -116,6 +170,8 @@ No se indexan `is_published` / `is_active`: con tablas tan chicas un seq scan es
   de autor, Menú del día y Pinchos rotativos con textos genéricos que no afirman la receta de la
   casa) y **precios ficticios**. Solo existen en el seed local: los reales se cargan desde el CMS.
 - Subtítulos de cada sección de la carta en `categories.description` (oficiales donde existen).
+- Las fotos de los banners NO van en el seed (un `.sql` no sube archivos): `npm run db:reset`
+  corre después `scripts/upload-category-banners.mjs`.
 
 > El seed **no** corre en producción. La carga de contenido inicial en el proyecto remoto se
 > define en la Fase 7 (desde el CMS o con un script de contenido versionado).
