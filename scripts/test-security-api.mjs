@@ -85,6 +85,10 @@ const upload = (path, { token, type = "image/webp" } = {}) =>
 const removeObject = (path, token) =>
   fetch(`${API}/storage/v1/object/site-media/${path}`, { method: "DELETE", headers: headers(token) });
 
+/** Lectura con la secret key (sin RLS): el estado real, para comparar. */
+const serviceGet = async (path) =>
+  (await fetch(`${API}/rest/v1/${path}`, { headers: { ...adminHeaders, Authorization: `Bearer ${SECRET}` } })).json();
+
 const publicExists = async (path) =>
   (await fetch(`${API}/storage/v1/object/public/site-media/${path}`)).status === 200;
 
@@ -95,6 +99,7 @@ const admin = { email: `admin-${run}@test.local`, password: pwd() };
 const user = { email: `user-${run}@test.local`, password: pwd() };
 const createdUsers = [];
 const file = `products/test-${run}.webp`;
+const specialFile = `specials/test-${run}.webp`;
 
 try {
   admin.id = await createUser(admin.email, admin.password);
@@ -123,8 +128,19 @@ try {
   check("login del admin funciona", Boolean(adminToken));
 
   console.log("\nVisitante (anon)");
+  // Lo esperado se calcula con la secret key (no depende de lo cargado desde el panel).
+  const allCategories = await serviceGet("categories?select=id,parent_id,is_active");
+  const allProducts = await serviceGet("products?select=category_id,is_available");
+  const byId = new Map(allCategories.map((c) => [c.id, c]));
+  const visible = (id) => {
+    const c = byId.get(id);
+    return c.is_active && (c.parent_id === null || byId.get(c.parent_id).is_active);
+  };
+  const expectedProducts = allProducts.filter((p) => p.is_available && visible(p.category_id)).length;
   const pub = await rest("products?select=slug");
-  check("lee la carta", pub.ok && (await pub.json()).length === 68, `status ${pub.status}`);
+  const pubCount = pub.ok ? (await pub.json()).length : -1;
+  check("lee la carta (solo productos disponibles de secciones visibles)",
+    pubCount === expectedProducts, `status ${pub.status}, ve ${pubCount}, esperado ${expectedProducts}`);
   const anonInsert = await rest("categories", { method: "POST", body: { name: "X", slug: `x-${run}` } });
   check("NO crea categorías", !anonInsert.ok, `status ${anonInsert.status}`);
   const anonPatch = await rest("products?slug=eq.espresso", { method: "PATCH", body: { price: 1 } });
@@ -140,6 +156,24 @@ try {
   check("NO modifica momentos", !anonMoments.ok, `status ${anonMoments.status}`);
   const anonView = await rest("categories_with_moments?slug=eq.cocteleria", { method: "PATCH", body: { moments: ["morning"] } });
   check("NO escribe momentos a través de la vista", !anonView.ok, `status ${anonView.status}`);
+  const anonStock = await rest("products?slug=eq.espresso", { method: "PATCH", body: { out_of_stock_on: "2026-01-01" } });
+  check("NO marca productos sin stock", !anonStock.ok, `status ${anonStock.status}`);
+  const anonComputed = await rest("products?slug=eq.espresso&select=out_of_stock_today");
+  check("lee el campo calculado out_of_stock_today", anonComputed.ok, `status ${anonComputed.status}`);
+  const anonReorder = await rest("rpc/reorder_categories", { method: "POST", body: { ids: [] } });
+  check("NO puede reordenar la carta (RPC)", !anonReorder.ok, `status ${anonReorder.status}`);
+  check("NO sube banners", !(await upload(`categories/anon-${run}.webp`)).ok);
+
+  const allSpecials = await serviceGet("daily_specials?select=moment,is_published,image_path,subtitle");
+  const publishedSpecials = allSpecials.filter((s) => s.is_published).map((s) => s.moment).sort();
+  const anonSpecials = await rest("daily_specials?select=moment");
+  const anonSpecialMoments = anonSpecials.ok ? (await anonSpecials.json()).map((s) => s.moment).sort() : null;
+  check("plato del día: ve SOLO los publicados",
+    JSON.stringify(anonSpecialMoments) === JSON.stringify(publishedSpecials),
+    `ve ${JSON.stringify(anonSpecialMoments)}, publicados ${JSON.stringify(publishedSpecials)}`);
+  const anonSpecialPatch = await rest("daily_specials?moment=eq.morning", { method: "PATCH", body: { title: "x" } });
+  check("plato del día: NO edita", !anonSpecialPatch.ok, `status ${anonSpecialPatch.status}`);
+  check("plato del día: NO sube fotos", !(await upload(`specials/anon-${run}.webp`)).ok);
 
   console.log("\nUsuario autenticado sin rol admin");
   const uInsert = await rest("categories", { token: userToken, method: "POST", body: { name: "X", slug: `x-${run}` } });
@@ -153,6 +187,12 @@ try {
   const uMoments = await rest("categories?slug=eq.cocteleria", { token: userToken, method: "PATCH", body: { moments: ["morning"] } });
   check("NO modifica momentos (0 filas)", uMoments.ok && (await uMoments.json()).length === 0, `status ${uMoments.status}`);
   check("NO sube archivos", !(await upload(`products/user-${run}.webp`, { token: userToken })).ok);
+  const uReorder = await rest("rpc/reorder_categories", { token: userToken, method: "POST", body: { ids: [] } });
+  check("NO puede reordenar la carta (RPC)", !uReorder.ok, `status ${uReorder.status}`);
+  check("NO sube fotos del plato del día", !(await upload(`specials/user-${run}.webp`, { token: userToken })).ok);
+  const uSpecial = await rest("daily_specials?moment=not.is.null", { token: userToken, method: "PATCH", body: { is_published: false } });
+  check("NO edita el plato del día (0 filas)",
+    uSpecial.ok && (await uSpecial.json()).length === 0, `status ${uSpecial.status}`);
 
   console.log("\nAdministrador");
   // Reescribe el MISMO precio que ya tenía: prueba el permiso sin alterar los datos del seed.
@@ -168,6 +208,31 @@ try {
   check("NO sube SVG (riesgo de XSS)",
     !(await upload(`branding/x-${run}.svg`, { token: adminToken, type: "image/svg+xml" })).ok);
 
+  // Plato del día: 3 filas fijas. El admin las lee y edita, pero no crea ni borra.
+  const aSpecials = await rest("daily_specials?select=moment", { token: adminToken });
+  check("plato del día: el admin ve los 3 espacios",
+    aSpecials.ok && (await aSpecials.json()).length === 3, `status ${aSpecials.status}`);
+  const morning = allSpecials.find((s) => s.moment === "morning");
+  const aSpecialPatch = await rest("daily_specials?moment=eq.morning", {
+    token: adminToken, method: "PATCH", body: { subtitle: morning.subtitle }, // mismo valor: no altera datos
+  });
+  check("plato del día: el admin edita",
+    aSpecialPatch.ok && (await aSpecialPatch.json()).length === 1, `status ${aSpecialPatch.status}`);
+  const aSpecialInsert = await rest("daily_specials", { token: adminToken, method: "POST", body: { moment: "morning" } });
+  check("plato del día: el admin NO crea filas", !aSpecialInsert.ok, `status ${aSpecialInsert.status}`);
+  const aSpecialDelete = await rest("daily_specials?moment=eq.evening", { token: adminToken, method: "DELETE" });
+  check("plato del día: el admin NO borra filas", !aSpecialDelete.ok, `status ${aSpecialDelete.status}`);
+  const empty = allSpecials.find((s) => !s.is_published && !s.image_path);
+  if (empty) {
+    const aPublishEmpty = await rest(`daily_specials?moment=eq.${empty.moment}`, {
+      token: adminToken, method: "PATCH", body: { is_published: true },
+    });
+    check("plato del día: NO se publica sin foto ni título", !aPublishEmpty.ok, `status ${aPublishEmpty.status}`);
+  }
+  const aSpecialUp = await upload(specialFile, { token: adminToken });
+  check("sube una foto a specials/", aSpecialUp.ok, `status ${aSpecialUp.status}`);
+  await removeObject(specialFile, adminToken);
+
   console.log("\nBorrado en Storage");
   await removeObject(file, userToken);
   check("el no-admin NO puede borrar el archivo", await publicExists(file));
@@ -179,6 +244,9 @@ try {
   check("ejecución del escenario", false, error.message);
 } finally {
   await removeObject(file, null).catch(() => {});
+  await fetch(`${API}/storage/v1/object/site-media/${specialFile}`, {
+    method: "DELETE", headers: { ...adminHeaders, Authorization: `Bearer ${SECRET}` },
+  }).catch(() => {});
   for (const id of createdUsers) await deleteUser(id);
 }
 

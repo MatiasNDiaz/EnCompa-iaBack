@@ -28,6 +28,16 @@ update public.products set is_available = false where slug = 'latte';
 insert into public.gallery_items (media_type, title, media_path, category, is_published) values
   ('image', 'Borrador', 'gallery/test-borrador.webp', 'espacio', false);
 
+-- Cuántos productos debería ver anon, calculado a mano (no depende de lo cargado desde
+-- el panel en la base local): disponible + su sección activa + su padre (si tiene) activo.
+select set_config('test.visible_products', (
+  select count(*)::text
+  from public.products p
+  join public.categories c on c.id = p.category_id
+  left join public.categories parent on parent.id = c.parent_id
+  where p.is_available and c.is_active and coalesce(parent.is_active, true)
+), true);
+
 -- =============================================================================
 -- 1. VISITANTE (anon)
 -- =============================================================================
@@ -43,8 +53,8 @@ select is((select count(*)::int from public.products where slug = 'test-oculto')
   'anon: NO ve productos de categorías ocultas');
 select is((select count(*)::int from public.products where slug = 'latte'), 0,
   'anon: NO ve productos no disponibles');
-select is((select count(*)::int from public.products), 67,
-  'anon: ve los 67 productos disponibles del seed');
+select is((select count(*)::int from public.products), current_setting('test.visible_products')::int,
+  'anon: ve exactamente los productos disponibles de secciones visibles');
 select is((select count(*)::int from public.gallery_items), 0, 'anon: NO ve ítems de galería sin publicar');
 select is((select count(*)::int from public.site_content), 13, 'anon: lee el contenido institucional');
 select is((select count(*)::int from public.site_settings), 1, 'anon: lee site_settings');
