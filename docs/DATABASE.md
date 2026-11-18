@@ -23,6 +23,10 @@ desde cero con `npm run db:reset` (local). **No se hacen cambios manuales desde 
 | 14 | `*_category_reorder.sql` | `public.reorder_categories(uuid[])`: reordenar secciones hermanas en una transacción (solo admin) |
 | 15 | `*_daily_specials.sql` | Tabla `daily_specials` (plato del día) con sus **3 filas fijas**, RLS y `private.is_valid_ingredient_list()` |
 | 16 | `*_daily_specials_ingredients_text.sql` | `daily_specials.ingredients` pasa de lista (`text[]`) a texto libre (≤ 500), como en productos. Conserva los datos (une con ", ") |
+| 17 | `*_site_settings_email.sql` | `site_settings.email` (≤ 254, formato validado) y Facebook acepta `web.` / `m.` |
+| 18 | `*_site_settings_contact_data.sql` | Dirección, WhatsApp, teléfono, email y redes del local (solo si estaban vacíos) |
+| 19 | `*_site_settings_map_embed.sql` | El mapa acepta el embed por dirección (sin clave de API) y se carga el del local |
+| 20 | `*_tapeo.sql` | "Tapas" → **"Tapeo"**: categoría (nombre y slug `tapeo-y-para-compartir`), descriptor del hero, bloque de la propuesta y tarjeta "Bar y tapeo". Solo si el texto seguía siendo el original |
 
 `functions` va **antes** que `rls_policies` (el prompt técnico las listaba al revés) porque las
 políticas referencian las funciones y estas deben existir al crearlas.
@@ -90,7 +94,7 @@ y por eso nunca pisa lo editado desde el panel):
 | Desayunos & Brunch | ✅ | | | Presentación del equipo |
 | Pastelería | ✅ | | ✅ | ⚠️ **A confirmar** (merienda) |
 | Almuerzos | | ✅ | | Presentación del equipo |
-| Tapas & para compartir | | | ✅ | Presentación del equipo |
+| Tapeo & para compartir | | | ✅ | Presentación del equipo |
 | Postres | | ✅ | ✅ | ⚠️ **A confirmar** |
 | Cocktails | | | ✅ | Presentación del equipo |
 

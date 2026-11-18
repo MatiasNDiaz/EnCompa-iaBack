@@ -23,7 +23,7 @@ insert into public.categories (name, slug, sort_order, moments) values
   ('Desayunos & Brunch',     'desayunos-y-brunch',     3, '{morning}'),
   ('Pastelería',             'pasteleria',             4, '{morning,evening}'),
   ('Almuerzos',              'almuerzos',              5, '{midday}'),
-  ('Tapas & para compartir', 'tapas-y-para-compartir', 6, '{evening}'),
+  ('Tapeo & para compartir', 'tapeo-y-para-compartir', 6, '{evening}'),
   ('Postres',                'postres',                7, '{midday,evening}'),
   ('Cocktails',              'cocteleria',             8, '{evening}');
 
@@ -103,15 +103,15 @@ from (values
   -- Menú del día (dos opciones rotativas)
   ('menu-del-dia', 'Menú del día · Opción 1', 'menu-del-dia-opcion-1', 1, false),
   ('menu-del-dia', 'Menú del día · Opción 2', 'menu-del-dia-opcion-2', 2, false),
-  -- Tapas & para compartir
-  ('tapas-y-para-compartir', 'Tabla de quesos',                 'tabla-de-quesos',                 1, false),
-  ('tapas-y-para-compartir', 'Tabla de fiambres',               'tabla-de-fiambres',               2, false),
-  ('tapas-y-para-compartir', 'Croque',                          'croque',                          3, false),
-  ('tapas-y-para-compartir', 'Alitas',                          'alitas',                          4, false),
-  ('tapas-y-para-compartir', 'Papas fritas con salsa holandesa', 'papas-fritas-con-salsa-holandesa', 5, false),
-  ('tapas-y-para-compartir', 'Pinchos rotativos',               'pinchos-rotativos',               6, false),
-  ('tapas-y-para-compartir', 'Falafel Bowl',                    'falafel-bowl',                    7, false),
-  ('tapas-y-para-compartir', 'Pincho de falafel',               'pincho-de-falafel',               8, false),
+  -- Tapeo & para compartir
+  ('tapeo-y-para-compartir', 'Tabla de quesos',                 'tabla-de-quesos',                 1, false),
+  ('tapeo-y-para-compartir', 'Tabla de fiambres',               'tabla-de-fiambres',               2, false),
+  ('tapeo-y-para-compartir', 'Croque',                          'croque',                          3, false),
+  ('tapeo-y-para-compartir', 'Alitas',                          'alitas',                          4, false),
+  ('tapeo-y-para-compartir', 'Papas fritas con salsa holandesa', 'papas-fritas-con-salsa-holandesa', 5, false),
+  ('tapeo-y-para-compartir', 'Pinchos rotativos',               'pinchos-rotativos',               6, false),
+  ('tapeo-y-para-compartir', 'Falafel Bowl',                    'falafel-bowl',                    7, false),
+  ('tapeo-y-para-compartir', 'Pincho de falafel',               'pincho-de-falafel',               8, false),
   -- Postres
   ('postres', 'Flan con caramelo',   'flan-con-caramelo',   1, false),
   ('postres', 'Mousse de chocolate', 'mousse-de-chocolate', 2, false),
@@ -153,7 +153,7 @@ insert into public.site_content (section, title, subtitle, content, quote, items
 (
   'home_hero',
   'Donde los encuentros saben mejor.',
-  'Café · Tapas · Cocktails',
+  'Café · Tapeo · Cocktails',
   'Hay lugares a los que siempre dan ganas de volver. Un café, algo rico para compartir y ese momento que se disfruta un poquito más. Bienvenidos a En Compañía.',
   null, null
 ),
@@ -166,7 +166,7 @@ insert into public.site_content (section, title, subtitle, content, quote, items
 ),
 (
   'offer_tapas',
-  'Tapas',
+  'Tapeo',
   'Pequeños grandes placeres para compartir',
   'Opciones para compartir.',
   null, null
@@ -296,7 +296,7 @@ insert into public.site_content (section, title, subtitle, content, quote, items
   '[
     {"title": "Mañana · Café y pastelería", "description": "Buen café, brunch, opciones dulces y sándwiches. Servicio ágil, cálido y cuidadoso."},
     {"title": "Mediodía · Algo rico y simple", "description": "Carta acotada, sándwiches y un menú del día rotativo."},
-    {"title": "Tarde / noche · Bar y tapeo", "description": "Cócteles clásicos y de autor, vinos y tapas creativas para acompañar."}
+    {"title": "Tarde / noche · Bar y tapeo", "description": "Cócteles clásicos y de autor, vinos y un tapeo creativo para acompañar."}
   ]'::jsonb
 ),
 (
@@ -408,7 +408,7 @@ from (values
 where p.slug = d.slug;
 
 -- Subtítulos de cada sección de la carta (se muestran bajo el título del banner).
--- Oficiales del cliente donde existen (Cafetería, Almuerzos, Tapas, Coctelería);
+-- Oficiales del cliente donde existen (Cafetería, Almuerzos, Tapeo, Coctelería);
 -- el resto, microcopy evocativo que no afirma hechos del negocio.
 update public.categories c set description = d.description
 from (values
@@ -417,7 +417,7 @@ from (values
   ('desayunos-y-brunch', 'Mañanas lentas, mesas llenas'),
   ('pasteleria', 'Algo dulce para acompañar el café'),
   ('almuerzos', 'Algo rico y simple'),
-  ('tapas-y-para-compartir', 'Pequeños grandes placeres para compartir'),
+  ('tapeo-y-para-compartir', 'Pequeños grandes placeres para compartir'),
   ('postres', 'El final dulce de cada encuentro'),
   ('cocteleria', 'El momento de brindar también tiene su lugar')
 ) as d (slug, description)

@@ -6,7 +6,7 @@
     { "slug": "desayunos-y-brunch", "file": "desayunos-y-brunch.webp", "illustrative": false },
     { "slug": "pasteleria", "file": "pasteleria.webp", "illustrative": true },
     { "slug": "almuerzos", "file": "almuerzos.webp", "illustrative": false },
-    { "slug": "tapas-y-para-compartir", "file": "tapas-y-para-compartir.webp", "illustrative": true },
+    { "slug": "tapeo-y-para-compartir", "file": "tapeo-y-para-compartir.webp", "illustrative": true },
     { "slug": "postres", "file": "postres.webp", "illustrative": true },
     { "slug": "cocteleria", "file": "cocteleria.webp", "illustrative": true }
   ]

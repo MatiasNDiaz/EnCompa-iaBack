@@ -71,9 +71,9 @@ select ok(not exists(select 1 from public.categories_with_moments
 select is(
   (select array_agg(slug::text order by slug) from public.categories_with_moments
    where parent_id is null and 'evening' = any(effective_moments)
-     and slug in ('cocteleria', 'tapas-y-para-compartir', 'desayunos-y-brunch', 'almuerzos')),
-  array['cocteleria', 'tapas-y-para-compartir'],
-  'filtro tarde/noche: Cocktails y Tapas, sin Desayunos ni Almuerzos');
+     and slug in ('cocteleria', 'tapeo-y-para-compartir', 'desayunos-y-brunch', 'almuerzos')),
+  array['cocteleria', 'tapeo-y-para-compartir'],
+  'filtro tarde/noche: Cocktails y Tapeo, sin Desayunos ni Almuerzos');
 
 -- =============================================================================
 -- 3. VISITANTE (anon)
