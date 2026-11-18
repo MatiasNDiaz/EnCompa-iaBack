@@ -7,13 +7,14 @@
     "db:start": "supabase start",
     "db:stop": "supabase stop",
     "db:status": "supabase status",
-    "db:reset": "supabase db reset",
+    "db:reset": "supabase db reset && node scripts/upload-category-banners.mjs",
     "db:new": "supabase migration new",
     "db:lint": "supabase db lint",
     "db:test": "supabase test db",
     "types:gen": "node scripts/gen-types.mjs",
     "test:security": "node scripts/test-security-api.mjs",
-    "admin:create": "node scripts/create-admin.mjs"
+    "admin:create": "node scripts/create-admin.mjs",
+    "media:banners": "node scripts/upload-category-banners.mjs"
   },
   "devDependencies": {
     "supabase": "^3.1.0"
