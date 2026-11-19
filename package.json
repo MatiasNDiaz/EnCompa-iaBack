@@ -14,7 +14,8 @@
     "types:gen": "node scripts/gen-types.mjs",
     "test:security": "node scripts/test-security-api.mjs",
     "admin:create": "node scripts/create-admin.mjs",
-    "media:banners": "node scripts/upload-category-banners.mjs"
+    "media:banners": "node scripts/upload-category-banners.mjs",
+    "content:build": "node scripts/build-initial-content.mjs"
   },
   "devDependencies": {
     "supabase": "^3.1.0"

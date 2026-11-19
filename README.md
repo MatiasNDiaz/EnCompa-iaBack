@@ -45,6 +45,7 @@ Supabase local expone:
 | `npm run test:security` | `scripts/test-security-api.mjs`: ataques por rol vía REST/Auth/Storage (solo local) |
 | `npm run types:gen`     | `scripts/gen-types.mjs`: tipos TS → `../EnCompa-iaFront/src/types/database.types.ts` |
 | `npm run admin:create`  | `scripts/create-admin.mjs`: crea/promueve el administrador (local por defecto) |
+| `npm run content:build` | Genera `supabase/contenido-inicial.sql` desde el seed (no lo aplica) |
 
 ## Estructura
 
@@ -102,3 +103,18 @@ Nunca hay credenciales en el repositorio y no existe registro público.
 Todavía no está vinculado. **No ejecutar `supabase link`, `db push` ni `config push` sin
 autorización.** El procedimiento paso a paso se documenta en la Fase 7. Al vincular, revisar:
 registro deshabilitado, política de contraseñas y límite global de subida de Storage.
+
+### Contenido inicial (proyecto nuevo)
+
+`supabase db push` crea la estructura, los datos de contacto, el horario genérico y los 3
+platos del día, pero **no** el seed: sin más, la carta y los textos quedarían vacíos.
+`supabase/contenido-inicial.sql` (generado con `npm run content:build`) carga UNA vez:
+
+- la carta: 8 secciones, 13 subsecciones y 68 productos, **sin precios ni descripciones**
+  (los precios ficticios y los borradores de descripciones del seed quedan afuera);
+- los subtítulos de las secciones, los textos institucionales oficiales y las 2 capacitaciones.
+
+Si la base ya tiene carta o textos, se detiene sin tocar nada. Se aplica desde el SQL Editor
+de Supabase o con `psql --single-transaction -f`, y después `npm run media:banners` contra
+ese proyecto. **Solo con autorización.** Lo que se cargó a mano en el panel local (productos,
+platos del día, novedades) no está incluido.
