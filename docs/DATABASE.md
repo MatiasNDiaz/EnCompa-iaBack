@@ -181,9 +181,10 @@ Se editan desde el panel (`/admin/horarios`) y se ven en Ubicación y en el pie 
 ### Novedades (`news_posts`)
 
 Eventos, promociones y propuestas especiales (por ejemplo "Noche de chicas"). Se editan en
-`/admin/novedades` y se ven en `/novedades` y `/novedades/<slug>`.
+`/admin/novedades` y se ven **completas en su tarjeta** de `/novedades` (no hay página de detalle;
+`/novedades/<slug>` redirige a la lista). El `slug` se usa como ancla de la tarjeta.
 
-- Campos: `title` (1–120), `slug` único (se genera del título al crearla y no cambia),
+- Campos: `title` (1–120), `slug` único (se genera del título al crearla y no cambia; ancla),
   `description` (1–1500, párrafos separados por línea en blanco), `closing_message` opcional
   (≤ 200, el mensaje final destacado), `event_date` opcional, `is_published`, `published_at`.
 - **Medios** (CHECK `news_posts_media`): `image` → imagen en `news/` y sin portada;
