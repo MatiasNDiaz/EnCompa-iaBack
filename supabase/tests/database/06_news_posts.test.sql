@@ -8,7 +8,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(40);
+select plan(43);
 
 -- -----------------------------------------------------------------------------
 -- Fixtures (como postgres)
@@ -80,6 +80,15 @@ select throws_ok($$ insert into public.news_posts (title, slug, description, med
 select throws_ok($$ insert into public.news_posts (title, slug, description, media_type, media_path)
   values ('Tipo', 'tipo', 'Texto.', 'audio', 'news/a.webp') $$,
   '23514', null, 'tipo: solo imagen o video');
+select col_default_is('public', 'news_posts', 'card_layout', 'split'::text,
+  'diseño de la tarjeta: "Dividida" por defecto');
+select throws_ok($$ insert into public.news_posts (title, slug, description, media_type, media_path, card_layout)
+  values ('Diseño', 'diseno', 'Texto.', 'image', 'news/a.webp', 'mosaico') $$,
+  '23514', null, 'diseño de la tarjeta: solo split, stacked o curved');
+select lives_ok($$ insert into public.news_posts (title, slug, description, media_type, media_path, card_layout)
+  values ('Curva', 'curva', 'Texto.', 'image', 'news/a.webp', 'curved') $$,
+  'diseño de la tarjeta: curved es válido');
+delete from public.news_posts where slug = 'curva';
 
 -- published_at: se completa al publicar y se conserva al ocultar y volver a publicar.
 update public.news_posts set is_published = true where slug = 'borrador';

@@ -31,6 +31,7 @@ desde cero con `npm run db:reset` (local). **No se hacen cambios manuales desde 
 | 22 | `*_opening_hours_lint.sql` | Misma función de validación con una variable renombrada (aviso de `db lint`) |
 | 23 | `*_opening_hours_today.sql` | Los días especiales usan `private.today_ar()` (la que ya existía) y se borra la duplicada `today_in_cordoba()` |
 | 24 | `*_news_posts.sql` | **Novedades**: tabla `news_posts` con RLS, trigger de `published_at` y carpeta `news/` en las políticas de Storage |
+| 25 | `*_news_card_layout.sql` | `news_posts.card_layout`: diseño de la tarjeta en la lista (`split` · `stacked` · `curved`), `split` por defecto |
 
 `functions` va **antes** que `rls_policies` (el prompt técnico las listaba al revés) porque las
 políticas referencian las funciones y estas deben existir al crearlas.
@@ -194,6 +195,9 @@ Eventos, promociones y propuestas especiales (por ejemplo "Noche de chicas"). Se
 - Archivos: el panel sube con URL firmada, el servidor verifica tipo y tamaño (imágenes 8 MiB,
   videos 50 MiB) y borra los que quedan sin uso al reemplazar o eliminar, con compensación si
   la fila no se guarda.
+- **Diseño de la tarjeta** (`card_layout`, migración 25): `split` (Dividida: foto a la izquierda),
+  `stacked` (Apilada: foto arriba) o `curved` (Curva: foto con el borde curvo). Lo elige el admin;
+  en el celular las tres ponen la foto arriba.
 - La navbar muestra "Novedades" solo si hay al menos una publicada.
 - Tests: `supabase/tests/database/06_news_posts.test.sql` y `scripts/test-security-api.mjs`.
 
